@@ -109,3 +109,45 @@ def test_pipeline_image_only_reverse_search(tmp_path):
         history = list_history(limit=1, db_path=db_file)
         assert len(history) == 1
         assert history[0]["input_type"] == "image_only"
+
+
+def test_pipeline_story_only_input(tmp_path):
+    """Verify pipeline functions when ONLY story body is provided without headline or URL."""
+    db_file = str(tmp_path / "pipeline_story_test.db")
+    init_db(db_path=db_file)
+
+    mock_text = TextAnalysis(
+        clickbait_score=5,
+        sensationalism_score=10,
+        headline_body_consistency=95,
+        key_claims=["128 shinkin banks affected by outage"],
+        reasoning="Factual report on banking disruption.",
+    )
+
+    mock_claims = [
+        ClaimResult(
+            claim="128 shinkin banks affected by outage",
+            status="Supported",
+            reasoning="Confirmed by banking association.",
+            sources=[Source(title="Financial News", url="https://example.com/banks", stance="supports")],
+        )
+    ]
+
+    with (
+        patch("core.pipeline.analyze_text", return_value=mock_text),
+        patch("core.verification.verify_claims_parallel", return_value=mock_claims),
+        patch("core.scoring.generate_explanation", return_value="Bank failure verified."),
+    ):
+        result = run_analysis(
+            body="a major system failure disrupted 128 shinkin banks across the region.",
+            db_path=db_file,
+        )
+
+        assert isinstance(result, AnalysisResult)
+        assert result.verdict == "Real"
+        assert len(result.claim_results) == 1
+        assert len(result.citations) == 1
+
+        history = list_history(limit=1, db_path=db_file)
+        assert len(history) == 1
+        assert "a major system failure disrupted 128 shinkin banks" in history[0]["headline"]

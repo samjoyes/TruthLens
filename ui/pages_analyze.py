@@ -36,18 +36,24 @@ def render_analyze_page() -> None:
             key="input_url",
         )
         headline = st.text_input(
-            "News Headline (Optional if image or URL is provided)",
-            placeholder="e.g. Breaking news claim or leave empty for image search...",
-            help="The main claim or headline to fact-check. Can be left empty if analyzing an image or URL.",
+            "News Headline (Optional)",
+            placeholder="e.g. Breaking news claim or leave empty to analyze story body / image...",
+            help="The main claim or headline to fact-check. Can be left empty if providing story text, image, or URL.",
             key="input_headline",
         )
         body = st.text_area(
             "Story Text / Body (Optional)",
-            placeholder="Paste article body paragraphs for consistency and claim verification...",
+            placeholder="Paste full article text, breaking story paragraphs, or claims to investigate...",
             height=110,
-            help="Optional body paragraphs to detect headline-body mismatch and extract claims.",
+            help="Paste story text, paragraphs, or claims. TruthLens will extract and verify factual claims from this text.",
             key="input_body",
         )
+
+        if body.strip() and not headline.strip() and not url.strip() and not uploaded_img:
+            st.info(
+                "💡 **Story Fact-Check Mode Active**\n\n"
+                "TruthLens will analyze the story text, extract key claims, and verify them against real-time web evidence."
+            )
 
     with col_input2:
         st.subheader("🖼️ Associated Image / Media (Optional)")
@@ -77,10 +83,11 @@ def render_analyze_page() -> None:
     if btn_analyze:
         has_image = image_bytes is not None
         has_headline = bool(headline and headline.strip())
+        has_body = bool(body and body.strip())
         has_url = bool(url and url.strip())
 
-        if not has_image and not has_headline and not has_url:
-            st.error("Please provide an image, a news headline, or a news URL before analyzing.")
+        if not has_image and not has_headline and not has_body and not has_url:
+            st.error("Please provide story text, a news headline, an article URL, or an image before analyzing.")
             return
 
         now = time.time()
@@ -92,9 +99,11 @@ def render_analyze_page() -> None:
         st.session_state["last_analysis_time"] = now
 
         # Dynamic progress description
-        if has_image and not has_headline and not has_url:
+        if has_image and not has_headline and not has_body and not has_url:
             investigation_title = "Performing deep-dive reverse image search on media..."
-        elif has_image and has_headline:
+        elif has_body and not has_headline and not has_url and not has_image:
+            investigation_title = "Analyzing story text, extracting claims, and verifying against web evidence..."
+        elif has_image and (has_headline or has_body):
             investigation_title = "Verifying multimodal story and media consistency..."
         elif has_url:
             investigation_title = "Fetching article and verifying claims against web evidence..."

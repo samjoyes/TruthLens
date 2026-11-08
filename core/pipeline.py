@@ -60,18 +60,8 @@ def run_analysis(
     clean_headline = (headline or "").strip()
     clean_body = (body or "").strip()
 
-    if not clean_url and not clean_headline and not image_bytes:
-        raise ValueError("Please provide an image, a news URL, or a headline to analyze.")
-
-    # Determine execution flow
-    if clean_url:
-        input_type = "url"
-    elif clean_headline and image_bytes:
-        input_type = "text+image"
-    elif image_bytes:
-        input_type = "image_only"
-    else:
-        input_type = "text"
+    if not clean_url and not clean_headline and not clean_body and not image_bytes:
+        raise ValueError("Please provide an image, story text, a news URL, or a headline to analyze.")
 
     # URL Ingestion
     if clean_url:
@@ -86,6 +76,28 @@ def run_analysis(
             raise ValueError(
                 "Could not extract article title from the provided URL. Please paste the headline directly."
             )
+
+    # Derive headline from story body if not explicitly provided
+    if not clean_headline and clean_body:
+        first_line = clean_body.splitlines()[0].strip()
+        if len(first_line) <= 120:
+            clean_headline = first_line
+        else:
+            sentence_ends = [first_line.find(p) for p in [". ", "? ", "! "] if first_line.find(p) != -1]
+            cutoff = min(sentence_ends) + 1 if sentence_ends else 117
+            clean_headline = first_line[:cutoff].strip()
+            if len(clean_headline) > 120:
+                clean_headline = clean_headline[:117] + "..."
+
+    # Determine execution flow
+    if clean_url:
+        input_type = "url"
+    elif clean_headline and image_bytes:
+        input_type = "text+image"
+    elif image_bytes:
+        input_type = "image_only"
+    else:
+        input_type = "text"
 
     # 2. Execution path for IMAGE-ONLY mode (Deep Dive Reverse Search)
     if input_type == "image_only":
