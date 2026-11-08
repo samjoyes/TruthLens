@@ -125,19 +125,23 @@ def generate_explanation(
     top_source = citations[0].title if citations else "available web records"
 
     claims_summary = "; ".join(f"'{c.claim}' ({c.status})" for c in claim_results) or "No specific verifiable claims"
-    img_summary = (
-        f"Image assessment: {image_analysis.verdict} (suspicion: {image_analysis.manipulation_suspicion}%, match: {image_analysis.context_match}%)."
-        if image_analysis
-        else "No image was provided."
-    )
+    if image_analysis:
+        img_summary = (
+            f"Image assessment verdict: {image_analysis.verdict} (suspicion: {image_analysis.manipulation_suspicion}%, match: {image_analysis.context_match}%).\n"
+            f"Detected visual entities: {', '.join(image_analysis.detected_entities) if image_analysis.detected_entities else 'None'}.\n"
+            f"Identified origin context: {image_analysis.origin_context or 'Not specified'}.\n"
+            f"Visual reasoning: {image_analysis.reasoning}"
+        )
+    else:
+        img_summary = "No image was provided."
 
-    prompt = f"""Summarize the news authenticity analysis below into 3-4 clear, objective plain sentences for a reader.
-Mention the primary findings, key claims, and reference the most important source ({top_source}).
+    prompt = f"""Summarize the news authenticity / image verification analysis below into 3-4 clear, objective plain sentences for a reader.
+Explain what the image/story depicts, its verified origin, key facts discovered, and reference the most important source ({top_source}).
 
-Headline: {headline}
+Headline/Subject: {headline}
 Verdict: {verdict} (Credibility: {credibility}%, Confidence: {confidence}%)
 Text Analysis: Clickbait score {text_analysis.clickbait_score}/100, Consistency {text_analysis.headline_body_consistency}/100.
-Claims: {claims_summary}
+Verified Search Findings: {claims_summary}
 {img_summary}
 
 Return ONLY valid JSON:
@@ -151,6 +155,15 @@ Return ONLY valid JSON:
         pass
 
     # Deterministic fallback explanation
+    if image_analysis and ("Reverse Image Deep Dive" in headline or not text_analysis.clickbait_score):
+        origin = image_analysis.origin_context or "the image"
+        entities = ", ".join(image_analysis.detected_entities[:3]) if image_analysis.detected_entities else "visual elements"
+        return (
+            f"TruthLens investigated this media and identified {entities}. "
+            f"Contextual records indicate {origin}. "
+            f"Web search findings across sources like {top_source} verify the media with {credibility}% credibility and {confidence}% confidence."
+        )
+
     fallback = (
         f"TruthLens evaluated '{headline}' with a verdict of {verdict} ({credibility}% credibility, {confidence}% confidence). "
         f"The headline has a clickbait score of {text_analysis.clickbait_score}/100 and a headline-body consistency of {text_analysis.headline_body_consistency}/100. "

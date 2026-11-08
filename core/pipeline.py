@@ -213,12 +213,15 @@ def run_analysis(
         claim_results=claim_results,
     )
 
-    # If image alone was judged likely manipulated, enforce appropriate verdict
+    # If image alone was judged, enforce appropriate verdict
     if input_type == "image_only" and image_analysis:
         if image_analysis.verdict == "Likely Manipulated":
             verdict = "Fake"
         elif image_analysis.verdict == "Possible Mismatch":
             verdict = "Misleading"
+        elif image_analysis.verdict == "Consistent":
+            verdict = "Real"
+            credibility = max(credibility, 85)
 
     confidence = compute_confidence(
         credibility=credibility,
