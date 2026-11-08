@@ -15,12 +15,15 @@ class TextAnalysis(BaseModel):
 
 
 class ImageAnalysis(BaseModel):
-    """Result of multimodal image-context verification."""
+    """Result of multimodal image-context verification and reverse image search."""
 
     manipulation_suspicion: int = Field(ge=0, le=100)
-    context_match: int = Field(ge=0, le=100)  # 100 = image fits the story
+    context_match: int = Field(ge=0, le=100)  # 100 = image fits the story or authentic scene
     verdict: Literal["Consistent", "Possible Mismatch", "Likely Manipulated"]
     reasoning: str
+    detected_entities: list[str] = Field(default_factory=list)
+    reverse_search_queries: list[str] = Field(default_factory=list)
+    origin_context: str = ""
 
 
 class Source(BaseModel):

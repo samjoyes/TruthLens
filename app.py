@@ -38,13 +38,11 @@ def main() -> None:
         )
 
         st.markdown("---")
-        # API Key management
+        # API Key management (fallback only if missing from environment)
         env_key = os.getenv("GEMINI_API_KEY", "").strip()
         has_env_key = bool(env_key and env_key not in ("your_key_here", "your_actual_key"))
 
-        if has_env_key:
-            st.success("🔑 Gemini API Key loaded from .env")
-        else:
+        if not has_env_key:
             st.markdown("**🔑 Gemini API Key**")
             input_key = st.text_input(
                 "Enter Gemini Key",
@@ -57,8 +55,6 @@ def main() -> None:
             if input_key:
                 st.session_state["user_gemini_api_key"] = input_key.strip()
                 st.success("API key set for this session!")
-            else:
-                st.info("💡 Add key in `.env` or paste it above to enable Gemini.")
 
         st.markdown("---")
         st.markdown(

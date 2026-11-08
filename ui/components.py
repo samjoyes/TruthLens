@@ -68,11 +68,11 @@ def render_scores(credibility_score: int, confidence: int, clickbait_score: int)
 
 
 def render_image_verdict(image_analysis: Optional[ImageAnalysis]) -> None:
-    """Render the image verification card if an image was analyzed."""
+    """Render the image verification and reverse search findings card."""
     if not image_analysis:
         return
 
-    st.subheader("🖼️ Multimodal Image Analysis")
+    st.subheader("🖼️ Multimodal Image Analysis & Reverse Search")
     verdict_colors = {
         "Consistent": "green",
         "Possible Mismatch": "orange",
@@ -83,11 +83,23 @@ def render_image_verdict(image_analysis: Optional[ImageAnalysis]) -> None:
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"**Image Verdict:** :{v_color}[{image_analysis.verdict}]")
-        st.write(f"• **Context Match:** {image_analysis.context_match}%")
-        st.write(f"• **Manipulation Suspicion:** {image_analysis.manipulation_suspicion}%")
+        st.write(f"• **Scene/Context Match:** {image_analysis.context_match}%")
+        st.write(f"• **Manipulation/AI Suspicion:** {image_analysis.manipulation_suspicion}%")
+        if image_analysis.origin_context:
+            st.markdown(f"**Identified Origin:** {image_analysis.origin_context}")
     with col2:
         st.markdown("**Visual Assessment Reasoning:**")
         st.caption(image_analysis.reasoning)
+        if image_analysis.detected_entities:
+            st.markdown(
+                "**Detected Entities:** "
+                + " ".join(f"`{e}`" for e in image_analysis.detected_entities)
+            )
+        if image_analysis.reverse_search_queries:
+            st.markdown(
+                "**Reverse Search Keywords:** "
+                + " • ".join(f"*{q}*" for q in image_analysis.reverse_search_queries)
+            )
 
 
 def render_claim_results(claim_results: list[ClaimResult]) -> None:

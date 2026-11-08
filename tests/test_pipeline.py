@@ -9,10 +9,10 @@ from core.schemas import AnalysisResult, ClaimResult, ImageAnalysis, Source, Tex
 
 
 def test_pipeline_rejects_empty_input():
-    """Verify ValueError is raised if neither URL nor headline is provided."""
+    """Verify ValueError is raised if neither URL, headline, nor image is provided."""
     with pytest.raises(ValueError) as exc:
-        run_analysis(url="", headline="")
-    assert "either a news URL or a headline" in str(exc.value)
+        run_analysis(url="", headline="", image_bytes=None)
+    assert "Please provide an image" in str(exc.value)
 
 
 def test_pipeline_end_to_end_mocked(tmp_path):
@@ -66,3 +66,46 @@ def test_pipeline_end_to_end_mocked(tmp_path):
         assert len(history) == 1
         assert history[0]["headline"] == "Chandrayaan-3 successfully soft lands on Moon"
         assert history[0]["verdict"] == "Real"
+
+
+def test_pipeline_image_only_reverse_search(tmp_path):
+    """Verify image-only investigation without headline performs reverse search."""
+    db_file = str(tmp_path / "pipeline_img_test.db")
+    init_db(db_path=db_file)
+
+    mock_img_analysis = ImageAnalysis(
+        manipulation_suspicion=10,
+        context_match=90,
+        verdict="Consistent",
+        reasoning="Authentic photograph of historical launch.",
+        detected_entities=["LVM3 Rocket", "Sriharikota"],
+        reverse_search_queries=["ISRO Chandrayaan-3 launch Sriharikota"],
+        origin_context="ISRO Chandrayaan-3 launch on July 14, 2023",
+    )
+
+    mock_claims = [
+        ClaimResult(
+            claim="ISRO Chandrayaan-3 launch Sriharikota",
+            status="Supported",
+            reasoning="Confirmed by historical mission records.",
+            sources=[Source(title="ISRO", url="https://isro.gov.in", stance="supports")],
+        )
+    ]
+
+    with (
+        patch("core.pipeline.analyze_image", return_value=mock_img_analysis),
+        patch("core.verification.verify_claims_parallel", return_value=mock_claims),
+        patch("core.scoring.generate_explanation", return_value="Reverse search confirms image."),
+    ):
+        # Pass dummy non-empty image bytes with no headline or URL
+        result = run_analysis(image_bytes=b"fake_image_bytes", db_path=db_file)
+
+        assert isinstance(result, AnalysisResult)
+        assert result.verdict == "Real"
+        assert result.image_analysis is not None
+        assert "LVM3 Rocket" in result.image_analysis.detected_entities
+        assert len(result.citations) >= 1
+
+        history = list_history(limit=1, db_path=db_file)
+        assert len(history) == 1
+        assert history[0]["input_type"] == "image_only"

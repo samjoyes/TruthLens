@@ -4,7 +4,7 @@ import io
 from typing import Optional
 from PIL import Image
 
-from core.llm import LLMError, generate_structured
+from core.llm import generate_structured
 from core.schemas import ImageAnalysis
 
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
@@ -50,40 +50,61 @@ def validate_and_preprocess_image(image_bytes: bytes) -> Image.Image:
 
 
 def analyze_image(
-    image_bytes: Optional[bytes], headline: str, body_summary: Optional[str] = None
+    image_bytes: Optional[bytes],
+    headline: Optional[str] = None,
+    body_summary: Optional[str] = None,
 ) -> Optional[ImageAnalysis]:
-    """Analyze image against article headline and context for manipulation or mismatch.
+    """Analyze image for authenticity, manipulation, and reverse-search query formulation.
 
     Args:
         image_bytes: Raw bytes of the uploaded image. If None, skips analysis.
-        headline: Story headline for context check.
+        headline: Optional story headline for context check.
         body_summary: Optional text summary of the story.
 
     Returns:
-        ImageAnalysis result, or None if image_bytes is not provided.
+        ImageAnalysis result with reverse search queries and origin context, or None.
     """
     if not image_bytes:
         return None
 
     pil_image = validate_and_preprocess_image(image_bytes)
 
-    context_text = f"HEADLINE: {headline.strip()}\n"
-    if body_summary and body_summary.strip():
-        context_text += f"CONTEXT SUMMARY: {body_summary.strip()[:1000]}\n"
+    clean_headline = (headline or "").strip()
+    if clean_headline:
+        context_block = f"CLAIMED HEADLINE: {clean_headline}\n"
+        if body_summary and body_summary.strip():
+            context_block += f"CONTEXT SUMMARY: {body_summary.strip()[:1000]}\n"
+        context_instruction = (
+            "Determine if the image authentically matches this claimed headline, or if it is "
+            "recycled, out-of-context, or synthetically generated."
+        )
+    else:
+        context_block = "CONTEXT: No headline was provided. Perform an autonomous deep-dive visual investigation."
+        context_instruction = (
+            "Analyze what this image depicts, determine its real-world origin, date/location, "
+            "and identify key entities to perform a deep-dive reverse search."
+        )
 
-    prompt = f"""You are an expert multimodal news-credibility analyst. Inspect this image and compare it with the claimed news story below:
+    prompt = f"""You are an expert multimodal forensic visual analyst and fact-checker. Inspect this image thoroughly:
 
-{context_text}
+{context_block}
 
-Evaluate:
-1. What does the image depict? Does it plausibly and authentically relate to the reported event, people, and location?
-2. Are there indicators of digital manipulation or synthetic generation (e.g., lighting/shadow discrepancies, warped boundaries, AI generation artifacts, unnatural skin/hands, recycled generic stock imagery, misleading text overlays)?
+{context_instruction}
+
+Tasks:
+1. Visually identify what the image shows: key public figures, landmarks, objects, visible signs/text, uniforms, terrain, or logos.
+2. Check for indicators of digital manipulation or generative AI creation (e.g., warped perspective, surreal textures, abnormal hands/limbs, lighting mismatches, watermarks, deepfake artifacts).
+3. Generate 2 to 3 high-precision web search queries (reverse-search style keywords) to find the original source, photographer, or news event for this picture.
+4. Summarize the likely real-world origin, event, or context of this image.
 
 Return ONLY valid JSON matching this schema:
-- manipulation_suspicion: integer 0-100 (0 = completely natural/authentic photograph, 100 = blatant manipulation/deepfake)
-- context_match: integer 0-100 (100 = image directly matches the headline/story, 0 = completely unrelated or out-of-context)
+- manipulation_suspicion: integer 0-100 (0 = authentic real photograph, 100 = blatant deepfake/manipulation)
+- context_match: integer 0-100 (100 = image fits the story or authentic real capture, 0 = completely unrelated)
 - verdict: one of "Consistent", "Possible Mismatch", "Likely Manipulated"
-- reasoning: 2-3 sentences in plain language. IMPORTANT: State suspicion levels with cautious phrasing (e.g., "appears to show", "possible mismatch", "suggests inconsistencies"), never claiming absolute certainty.
+- reasoning: 2-3 plain language sentences explaining the visual assessment. Never claim absolute certainty; use cautious phrasing ("appears to show", "possible inconsistency").
+- detected_entities: list of key entities, people, locations, or objects identified
+- reverse_search_queries: list of 2-3 specific search queries to locate this image/event on the web
+- origin_context: 1-2 sentences describing the identified origin, historical setting, or event
 """
 
     return generate_structured(

@@ -1,4 +1,4 @@
-"""Streamlit Analyze Page for TruthLens."""
+"""Streamlit Analyze Page for TruthLens with Deep Dive Reverse Image Search."""
 
 import time
 import streamlit as st
@@ -18,76 +18,112 @@ RATE_LIMIT_COOLDOWN_SECONDS = 3.0
 
 
 def render_analyze_page() -> None:
-    """Render the primary news analysis interface."""
-    st.header("🔎 Analyze News Authenticity")
+    """Render the primary news and reverse image analysis interface."""
+    st.header("🔎 TruthLens Investigation Engine")
     st.write(
-        "Enter a news article URL or paste a headline and body text to inspect credibility, "
-        "clickbait characteristics, and claim veracity."
+        "Verify online news authenticity, detect clickbait, or upload an image to run an "
+        "autonomous deep-dive reverse search to discover its true origin and context."
     )
 
     # Input Mode Tabs
-    tab_text, tab_url = st.tabs(["📝 Headline & Text", "🔗 News Article URL"])
+    tab_img, tab_text, tab_url = st.tabs(
+        ["🖼️ Image Deep Dive", "📝 Headline & Text", "🔗 News Article URL"]
+    )
 
     headline = ""
     body = ""
     url = ""
+    image_bytes = None
+
+    with tab_img:
+        st.write("Upload an image alone to perform an automated visual forensic and reverse-search investigation.")
+        uploaded_img_standalone = st.file_uploader(
+            "Upload Image for Deep Dive (JPG, PNG, WEBP, max 5 MB)",
+            type=["jpg", "jpeg", "png", "webp"],
+            key="standalone_image_uploader",
+        )
+        optional_context = st.text_input(
+            "Optional Context / Claim (Leave blank to search purely by image)",
+            placeholder="e.g. Claimed to be taken in Paris yesterday",
+            key="img_optional_headline",
+        )
+        if uploaded_img_standalone:
+            image_bytes = uploaded_img_standalone.getvalue()
+            st.image(image_bytes, caption="Uploaded Image for Reverse Investigation", width=420)
+        if optional_context and optional_context.strip():
+            headline = optional_context.strip()
 
     with tab_text:
-        headline = st.text_input(
-            "Headline *",
+        text_headline = st.text_input(
+            "Headline",
             placeholder="e.g. NASA confirms discovery of liquid water on Mars",
             key="input_headline",
         )
-        body = st.text_area(
+        text_body = st.text_area(
             "Body Text (Optional)",
             placeholder="Paste article body paragraphs here for consistency and deep claim extraction...",
-            height=150,
+            height=130,
             key="input_body",
         )
+        uploaded_text_img = st.file_uploader(
+            "Attach story image (Optional)",
+            type=["jpg", "jpeg", "png", "webp"],
+            key="text_tab_image_uploader",
+        )
+        if uploaded_text_img and not image_bytes:
+            image_bytes = uploaded_text_img.getvalue()
+            st.image(image_bytes, caption="Attached Image", width=360)
+        if text_headline and text_headline.strip():
+            headline = text_headline.strip()
+            body = text_body.strip() if text_body else ""
 
     with tab_url:
-        url = st.text_input(
-            "Article URL *",
+        input_url = st.text_input(
+            "Article URL",
             placeholder="https://example.com/news/article-headline",
             key="input_url",
         )
         st.caption("TruthLens will fetch the article title, body paragraphs, and evaluate the claims.")
-
-    # Image Upload Section
-    st.subheader("🖼️ Associated Image (Optional)")
-    uploaded_image = st.file_uploader(
-        "Upload story image (JPG, PNG, WEBP, max 5 MB)",
-        type=["jpg", "jpeg", "png", "webp"],
-        key="image_uploader",
-    )
-    image_bytes = None
-    if uploaded_image:
-        image_bytes = uploaded_image.getvalue()
-        st.image(image_bytes, caption="Uploaded Image Preview", width=360)
+        uploaded_url_img = st.file_uploader(
+            "Attach story image (Optional)",
+            type=["jpg", "jpeg", "png", "webp"],
+            key="url_tab_image_uploader",
+        )
+        if uploaded_url_img and not image_bytes:
+            image_bytes = uploaded_url_img.getvalue()
+            st.image(image_bytes, caption="Attached Image", width=360)
+        if input_url and input_url.strip():
+            url = input_url.strip()
 
     # Submission Action
-    analyze_btn = st.button("🔍 Analyze Authenticity", type="primary", use_container_width=True)
+    st.markdown("")
+    analyze_btn = st.button("🔍 Run Analysis / Deep Dive", type="primary", use_container_width=True)
 
     if analyze_btn:
         # Rate limit cooldown check
         now = time.time()
         last_run = st.session_state.get("last_analysis_time", 0.0)
         if now - last_run < RATE_LIMIT_COOLDOWN_SECONDS:
-            st.warning("Please wait a few seconds between analyses to protect free API limits.")
+            st.warning("Please wait a few seconds between analyses to protect API quotas.")
             return
 
-        # Basic client validation
         has_headline = bool(headline and headline.strip())
         has_url = bool(url and url.strip())
+        has_image = bool(image_bytes is not None and len(image_bytes) > 0)
 
-        if not has_headline and not has_url:
-            st.error("Please provide either a headline or a news URL before analyzing.")
+        if not has_headline and not has_url and not has_image:
+            st.error("Please upload an image, enter a headline, or paste a news URL to analyze.")
             return
 
         st.session_state["last_analysis_time"] = now
 
-        # Execute analysis pipeline with real-time status updates
-        with st.status("Analyzing news story...", expanded=True) as status_box:
+        status_label = (
+            "Performing deep-dive reverse image investigation..."
+            if (has_image and not has_headline and not has_url)
+            else "Analyzing news authenticity..."
+        )
+
+        with st.status(status_label, expanded=True) as status_box:
             try:
                 def update_progress(msg: str):
                     status_box.write(f"• {msg}")
@@ -95,15 +131,14 @@ def render_analyze_page() -> None:
                 result: AnalysisResult = run_analysis(
                     url=url if has_url else None,
                     headline=headline if has_headline else None,
-                    body=body,
+                    body=body if body else None,
                     image_bytes=image_bytes,
                     progress_callback=update_progress,
                 )
-                status_box.update(label="Analysis complete!", state="complete", expanded=False)
+                status_box.update(label="Investigation complete!", state="complete", expanded=False)
                 st.session_state["current_analysis"] = result
-                st.session_state["analyzed_headline"] = headline or (result.citations[0].title if result.citations else "Analyzed Story")
             except Exception as err:
-                status_box.update(label="Analysis failed", state="error", expanded=True)
+                status_box.update(label="Investigation failed", state="error", expanded=True)
                 st.error(f"Analysis Error: {err}")
                 return
 
@@ -120,13 +155,6 @@ def render_analyze_page() -> None:
 
         st.subheader("💡 Summary & Evidence Explanation")
         st.write(result.explanation)
-
-        col_text1, col_text2 = st.columns(2)
-        with col_text1:
-            st.markdown(f"**Headline-Body Consistency:** {result.text_analysis.headline_body_consistency}%")
-        with col_text2:
-            st.markdown(f"**Sensationalism Score:** {result.text_analysis.sensationalism_score}%")
-        st.caption(f"Text Analysis Reasoning: {result.text_analysis.reasoning}")
 
         if result.image_analysis:
             st.markdown("---")
