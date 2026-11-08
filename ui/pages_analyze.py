@@ -49,12 +49,6 @@ def render_analyze_page() -> None:
             key="input_body",
         )
 
-        if body.strip() and not headline.strip() and not url.strip() and not uploaded_img:
-            st.info(
-                "💡 **Story Fact-Check Mode Active**\n\n"
-                "TruthLens will analyze the story text, extract key claims, and verify them against real-time web evidence."
-            )
-
     with col_input2:
         st.subheader("🖼️ Associated Image / Media (Optional)")
         uploaded_img = st.file_uploader(
@@ -69,22 +63,28 @@ def render_analyze_page() -> None:
             image_bytes = uploaded_img.getvalue()
             st.image(image_bytes, caption="Uploaded Image Preview", width=340)
 
-            # Contextual mode indicator
-            if not headline.strip() and not url.strip():
-                st.info(
-                    "💡 **Autonomous Reverse Image Search Mode Active**\n\n"
-                    "No headline or URL entered. TruthLens will inspect this image, identify visual entities, "
-                    "reverse-search web records, and uncover the background origin and history of this media."
-                )
+    # Contextual mode indicators
+    has_image = image_bytes is not None
+    has_headline = bool(headline and headline.strip())
+    has_body = bool(body and body.strip())
+    has_url = bool(url and url.strip())
+
+    if has_image and not has_headline and not has_body and not has_url:
+        st.info(
+            "💡 **Autonomous Reverse Image Search Mode Active**\n\n"
+            "No story text, headline, or URL entered. TruthLens will inspect this image, identify visual entities, "
+            "reverse-search web records, and uncover the background origin and history of this media."
+        )
+    elif has_body and not has_headline and not has_url and not has_image:
+        st.info(
+            "💡 **Story Fact-Check Mode Active**\n\n"
+            "TruthLens will analyze the story text, extract key claims, and verify them against real-time web evidence."
+        )
 
     st.markdown("")
     btn_analyze = st.button("🔍 Analyze Authenticity", type="primary", use_container_width=True)
 
     if btn_analyze:
-        has_image = image_bytes is not None
-        has_headline = bool(headline and headline.strip())
-        has_body = bool(body and body.strip())
-        has_url = bool(url and url.strip())
 
         if not has_image and not has_headline and not has_body and not has_url:
             st.error("Please provide story text, a news headline, an article URL, or an image before analyzing.")
