@@ -35,8 +35,8 @@ WEIGHT_IMAGE = 0.15
 
 
 def get_gemini_api_key() -> str:
-    """Retrieve Gemini API key from environment, .env, or Streamlit session state."""
-    # 1. Check Streamlit session state if running inside UI
+    """Retrieve Gemini API key from Streamlit secrets, session state, environment, or .env."""
+    # 1. Check Streamlit session state and st.secrets if running inside UI
     try:
         import streamlit as st
 
@@ -44,6 +44,11 @@ def get_gemini_api_key() -> str:
             session_key = str(st.session_state.get("user_gemini_api_key") or "").strip()
             if session_key and session_key not in ("your_key_here", "your_actual_key"):
                 return session_key
+
+        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            secret_key = str(st.secrets["GEMINI_API_KEY"] or "").strip()
+            if secret_key and secret_key not in ("your_key_here", "your_actual_key"):
+                return secret_key
     except Exception:
         pass
 

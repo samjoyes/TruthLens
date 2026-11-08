@@ -38,9 +38,19 @@ def main() -> None:
         )
 
         st.markdown("---")
-        # API Key management (fallback only if missing from environment)
+        # API Key management (fallback only if missing from environment, st.secrets, or session)
         env_key = os.getenv("GEMINI_API_KEY", "").strip()
-        has_env_key = bool(env_key and env_key not in ("your_key_here", "your_actual_key"))
+        secret_key = ""
+        try:
+            if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+                secret_key = str(st.secrets["GEMINI_API_KEY"] or "").strip()
+        except Exception:
+            pass
+
+        has_env_key = bool(
+            (env_key and env_key not in ("your_key_here", "your_actual_key"))
+            or (secret_key and secret_key not in ("your_key_here", "your_actual_key"))
+        )
 
         if not has_env_key:
             st.markdown("**🔑 Gemini API Key**")
@@ -48,7 +58,7 @@ def main() -> None:
                 "Enter Gemini Key",
                 type="password",
                 value=st.session_state.get("user_gemini_api_key", ""),
-                help="Get a free key at https://aistudio.google.com/ and paste it here or set it in .env.",
+                help="Get a free key at https://aistudio.google.com/ and paste it here or set it in secrets/.env.",
                 placeholder="AIzaSy...",
                 key="sidebar_gemini_key",
             )
